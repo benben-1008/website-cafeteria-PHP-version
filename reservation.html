@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>食堂予約システム</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🍽️ 食堂予約システム</h1>
+      <p>お名前とご希望のメニューを選択してください</p>
+    </header>
+
+    <main>
+      <section class="reservation-section">
+        <div class="reservation-card">
+          <h2>📝 予約フォーム</h2>
+          <form id="reservation-form">
+            <div class="form-group">
+              <label for="student-name">お名前 *</label>
+              <input type="text" id="student-name" required placeholder="例: 田中太郎">
+            </div>
+
+            <div class="form-group">
+              <label for="food">ご希望のメニュー *</label>
+              <select id="food" required></select>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">予約を確定</button>
+              <button type="button" onclick="resetForm()" class="btn btn-secondary">リセット</button>
+            </div>
+          </form>
+        </div>
+      </section>
+      
+      <section class="menu-table-section">
+        <div class="reservation-card">
+          <h2>📋 メニュー一覧</h2>
+          <table class="menu-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th style="text-align: left; border-bottom: 1px solid #ddd; padding: 8px;">メニュー</th>
+                <th style="text-align: right; border-bottom: 1px solid #ddd; padding: 8px;">値段（円）</th>
+                <th style="text-align: left; border-bottom: 1px solid #ddd; padding: 8px;">アレルギー</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">日替わり定食</td>
+                <td style="padding: 8px; text-align: right; border-bottom: 1px solid #f0f0f0;">550</td>
+                <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">未定</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">日替わり丼</td>
+                <td style="padding: 8px; text-align: right; border-bottom: 1px solid #f0f0f0;">450</td>
+                <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">未定</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">カレーライス</td>
+                <td style="padding: 8px; text-align: right; border-bottom: 1px solid #f0f0f0;">450</td>
+                <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">米</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">カツカレー</td>
+                <td style="padding: 8px; text-align: right; border-bottom: 1px solid #f0f0f0;">500</td>
+                <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">米</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">醤油ラーメン</td>
+                <td style="padding: 8px; text-align: right; border-bottom: 1px solid #f0f0f0;">450</td>
+                <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">小麦</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px;">かけうどん</td>
+                <td style="padding: 8px; text-align: right;">350</td>
+                <td style="padding: 8px;">小麦</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <section class="info-section">
+      <h2>🔗 URLリンク</h2>
+      <div id="page-links" class="info-card"></div>
+    </section>
+
+    <footer>
+      <a href="index.html" class="back-link">← メインページに戻る</a>
+    </footer>
+  </div>
+
+  <script>
+    const API_BASE = 'api/';
+    async function apiGet(path) {
+      const res = await fetch(API_BASE + path, { cache: 'no-store' });
+      if (!res.ok) throw new Error('GET failed: ' + path);
+      return await res.json();
+    }
+    async function apiPost(path, data) {
+      const res = await fetch(API_BASE + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error('POST failed: ' + path);
+      return await res.json();
+    }
+    async function loadMenuOptions() {
+      const select = document.getElementById("food");
+      const menus = await apiGet('menu.php');
+      select.innerHTML = "";
+
+      if (menus.length === 0) {
+        select.innerHTML = "<option>メニューが設定されていません</option>";
+        select.disabled = true;
+        return;
+      }
+
+      menus.forEach(menu => {
+        const option = document.createElement("option");
+        option.value = menu.name;
+        option.textContent = menu.stock > 0 
+          ? `${menu.name}（残り${menu.stock}食）`
+          : `${menu.name}（売り切れ）`;
+        option.disabled = menu.stock <= 0;
+        select.appendChild(option);
+      });
+    }
+
+    document.getElementById("reservation-form").addEventListener("submit", async e => {
+      e.preventDefault();
+      const name = document.getElementById("student-name").value.trim();
+      const food = document.getElementById("food").value;
+      if (!name || !food) return alert("全ての項目を入力してください。");
+
+      const menus = await apiGet('menu.php');
+      const menu = menus.find(m => m.name === food);
+      if (!menu || menu.stock <= 0) {
+        alert("このメニューは売り切れです。");
+        return;
+      }
+
+      // 予約登録
+      const reservations = await apiGet('reservations.php');
+      reservations.push({ name, food, createdAt: new Date().toISOString() });
+      await apiPost('reservations.php', reservations);
+
+      // 在庫を減らす
+      menu.stock -= 1;
+      await apiPost('menu.php', menus);
+
+      alert("予約が完了しました！");
+      document.getElementById("reservation-form").reset();
+      loadMenuOptions();
+    });
+
+    function resetForm() {
+      document.getElementById("reservation-form").reset();
+    }
+
+    function renderLinks() {
+      const base = window.location.href.replace(/[^/]*$/, '');
+      const pages = [
+        { name: '生徒用サイト (index.html)', file: 'index.html' },
+        { name: '予約サイト (reservation.html)', file: 'reservation.html' },
+        { name: '食堂専用ChatGPT (chatgpt.html)', file: 'chatgpt.html' }
+      ];
+      const linksDiv = document.getElementById('page-links');
+      if (!linksDiv) return;
+      linksDiv.innerHTML = pages.map(p => {
+        const url = base + p.file;
+        return `<p><strong>${p.name}:</strong> <a href="${url}">${url}</a></p>`;
+      }).join('');
+    }
+
+    window.onload = function() {
+      loadMenuOptions();
+      renderLinks();
+    };
+  </script>
+</body>
+</html>

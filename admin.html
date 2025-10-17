@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>学校食堂 - 管理サイト</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* カレンダー用の簡単なデザイン */
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      text-align: center;
+      margin-top: 10px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      border-radius: 8px;
+    }
+    .calendar div {
+      padding: 5px;
+    }
+    .holiday {
+      background-color: #ffcccc;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔧 学校食堂管理システム</h1>
+      <p>管理用サイト</p>
+    </header>
+
+    <main>
+
+      <!-- 🔹 メニュー管理 -->
+      <section class="admin-section">
+        <h2>🍱 メニュー管理</h2>
+        <div class="admin-card">
+          <h3>メニューを追加</h3>
+          <div class="form-group">
+            <label for="menu-name">メニュー名:</label>
+            <input type="text" id="menu-name" placeholder="例: カレー" required>
+          </div>
+          <div class="form-group">
+            <label for="menu-stock">提供可能数:</label>
+            <input type="number" id="menu-stock" placeholder="例: 30" required>
+          </div>
+          <button onclick="addMenu()" class="btn btn-primary">メニューを追加</button>
+        </div>
+
+        <div class="admin-card">
+          <h3>現在のメニュー一覧</h3>
+          <div style="margin-bottom:10px;">
+            <button onclick="resetMenuStocks()" class="btn btn-secondary">残数をリセット</button>
+          </div>
+          <div id="menu-list"></div>
+        </div>
+      </section>
+
+      <!-- 🔹 休業日設定 -->
+      <section class="admin-section">
+        <h2>📅 休業日設定</h2>
+        <div class="admin-card">
+          <h3>休業日を追加</h3>
+          <div class="form-group">
+            <label for="holiday-date">日付:</label>
+            <input type="date" id="holiday-date" required>
+          </div>
+          <div class="form-group">
+            <label for="holiday-reason">理由:</label>
+            <input type="text" id="holiday-reason" placeholder="例: 設備点検" required>
+          </div>
+          <button onclick="addHoliday()" class="btn btn-primary">休業日を追加</button>
+        </div>
+  
+        <div class="admin-card">
+          <h3>🗓 カレンダー表示</h3>
+          <div id="calendar" class="calendar"></div>
+        </div>
+
+        <div class="admin-card">
+          <h3>現在の休業日一覧</h3>
+          <div id="holidays-list" class="holidays-list"></div>
+        </div>
+      </section>
+
+      <!-- 🔹 予約一覧 -->
+      <section class="admin-section">
+        <h2>📝 予約一覧</h2>
+        <div class="admin-card">
+          <h3>予約状況</h3>
+          <div id="reservations-list"></div>
+        </div>
+      </section>
+
+      <section class="admin-section">
+        <h2>🔗 URLリンク</h2>
+        <div id="page-links" class="admin-card"></div>
+      </section>
+
+    </main>
+
+    <footer>
+      <p>&copy; 2025 学校食堂管理システム</p>
+    </footer>
+  </div>
+
+  <script>
+    // === API ヘルパー ===
+    const API_BASE = 'api/';
+    async function apiGet(path) {
+      const res = await fetch(API_BASE + path, { cache: 'no-store' });
+      if (!res.ok) throw new Error('GET failed: ' + path);
+      return await res.json();
+    }
+    async function apiPost(path, data) {
+      const res = await fetch(API_BASE + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (!res.ok) throw new Error('POST failed: ' + path);
+      return await res.json();
+    }
+    // === メニュー管理 ===
+    async function loadMenus() {
+      const list = document.getElementById("menu-list");
+      list.innerHTML = "";
+      let menus = await apiGet('menu.php');
+
+      // 既存データの初期在庫フィールドを補完（初回のみ）
+      let needsSave = false;
+      menus.forEach(m => {
+        if (typeof m.initialStock !== 'number' || m.initialStock <= 0) {
+          m.initialStock = m.stock;
+          needsSave = true;
+        }
+      });
+      if (needsSave) {
+        await apiPost('menu.php', menus);
+      }
+
+      if (!menus || menus.length === 0) {
+        list.innerHTML = "<p>メニューが登録されていません。</p>";
+        return;
+      }
+
+      menus.forEach((m, i) => {
+        const div = document.createElement("div");
+        div.className = "menu-item";
+        div.innerHTML = `
+          <p>🍱 ${m.name}　残り: ${m.stock}食</p>
+          <button onclick="deleteMenu(${i})" class="btn btn-danger">削除</button>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    async function addMenu() {
+      const name = document.getElementById("menu-name").value.trim();
+      const stock = parseInt(document.getElementById("menu-stock").value);
+      if (!name || stock <= 0) return alert("メニュー名と提供数を正しく入力してください。");
+
+      const menus = await apiGet('menu.php');
+      menus.push({ name, stock, initialStock: stock });
+      await apiPost('menu.php', menus);
+
+      document.getElementById("menu-name").value = "";
+      document.getElementById("menu-stock").value = "";
+      loadMenus();
+    }
+
+    async function deleteMenu(index) {
+      const menus = await apiGet('menu.php');
+      menus.splice(index, 1);
+      await apiPost('menu.php', menus);
+      loadMenus();
+    }
+
+    // === 休業日管理 ===
+    async function addHoliday() {
+      const date = document.getElementById("holiday-date").value;
+      const reason = document.getElementById("holiday-reason").value.trim();
+      if (!date || !reason) return alert("日付と理由を入力してください。");
+
+      const holidays = await apiGet('holidays.php');
+      holidays.push({ date, reason });
+      await apiPost('holidays.php', holidays);
+
+      document.getElementById("holiday-date").value = "";
+      document.getElementById("holiday-reason").value = "";
+      loadHolidays();
+      renderCalendar();
+    }
+
+    async function loadHolidays() {
+      const holidays = await apiGet('holidays.php');
+      const list = document.getElementById("holidays-list");
+      list.innerHTML = holidays.length
+        ? holidays.map(h => `<p>📅 ${h.date}　📝 ${h.reason}</p>`).join("")
+        : "<p>休業日は登録されていません。</p>";
+    }
+
+    // === カレンダー表示 ===
+    async function renderCalendar() {
+      const calendar = document.getElementById("calendar");
+      const holidays = await apiGet('holidays.php');
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = today.getMonth(); // 0始まり
+
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 0);
+      const startWeekday = firstDay.getDay();
+
+      calendar.innerHTML = "";
+
+      // 曜日
+      ["日","月","火","水","木","金","土"].forEach(d => {
+        const div = document.createElement("div");
+        div.innerHTML = `<strong>${d}</strong>`;
+        calendar.appendChild(div);
+      });
+
+      // 空欄
+      for (let i = 0; i < startWeekday; i++) {
+        const blank = document.createElement("div");
+        calendar.appendChild(blank);
+      }
+
+      // 日付
+      for (let day = 1; day <= lastDay.getDate(); day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+        const div = document.createElement("div");
+        const isHoliday = holidays.some(h => h.date === dateStr);
+        div.textContent = day;
+        if (isHoliday) div.classList.add("holiday");
+        calendar.appendChild(div);
+      }
+    }
+
+    // === 予約一覧 ===
+    async function loadReservations() {
+      const reservations = await apiGet('reservations.php');
+      const list = document.getElementById("reservations-list");
+      list.innerHTML = reservations.length
+        ? reservations.map(r => `<p>👤 ${r.name} 🍽️ ${r.food}</p>`).join("")
+        : "<p>予約はありません。</p>";
+    }
+
+    // === 残数リセット ===
+    async function resetMenuStocks() {
+  if (!confirm('本当にリセットしますか？\n全メニューの残数を初期値に戻します。')) {
+    return;
+  }
+
+      let menus = await apiGet('menu.php');
+
+  if (menus.length === 0) {
+    alert("メニューがありません。");
+    return;
+  }
+
+  // 🔹 initialStock が存在しない古いデータのための補完
+  menus = menus.map(m => {
+    // もし initialStock が無ければ、現在の stock を初期値として保存
+    if (typeof m.initialStock !== "number" || m.initialStock <= 0) {
+      m.initialStock = m.stock;
+    }
+    // リセット処理：残数を初期値に戻す
+    m.stock = m.initialStock;
+    return m;
+  });
+
+      await apiPost('menu.php', menus);
+
+  // メニューを再読み込み
+  loadMenus();
+
+  alert("全メニューの残数を初期値にリセットしました。");
+}
+
+
+    // === 起動時 ===
+    function renderLinks() {
+      const base = window.location.href.replace(/[^/]*$/, '');
+      const pages = [
+        { name: '生徒用サイト (index.html)', file: 'index.html' },
+        { name: '管理者サイト (admin.html)', file: 'admin.html' },
+        { name: '予約サイト (reservation.html)', file: 'reservation.html' },
+        { name: '食堂専用ChatGPT (chatgpt.html)', file: 'chatgpt.html' }
+      ];
+      const linksDiv = document.getElementById('page-links');
+      if (!linksDiv) return;
+      linksDiv.innerHTML = pages.map(p => {
+        const url = base + p.file;
+        return `<p><strong>${p.name}:</strong> <a href="${url}">${url}</a></p>`;
+      }).join('');
+    }
+
+    window.onload = function() {
+      loadMenus();
+      loadHolidays();
+      loadReservations();
+      renderCalendar();
+      renderLinks();
+    };
+  </script>
+</body>
+</html>

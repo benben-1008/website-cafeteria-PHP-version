@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>食堂専用ChatGPT</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 食堂専用ChatGPT</h1>
+            <p>メニューや営業時間について質問してください</p>
+        </header>
+
+        <main>
+            <section class="chat-section">
+                <div id="chat-container" class="chat-container">
+                    <div class="chat-message bot-message">
+                        <div class="message-content">
+                            こんにちは！学校食堂のAIアシスタントです。メニューや営業時間、予約について何でもお聞きください。
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chat-input-container">
+                    <input type="text" id="chat-input" placeholder="質問を入力してください..." maxlength="500">
+                    <button onclick="sendMessage()" id="send-btn" class="btn btn-primary">送信</button>
+                </div>
+            </section>
+
+            <section class="quick-questions">
+                <h3>よくある質問</h3>
+                <div class="quick-question-buttons">
+                    <button onclick="askQuestion('今日のメニューは何ですか？')" class="quick-btn">今日のメニュー</button>
+                    <button onclick="askQuestion('営業時間を教えてください')" class="quick-btn">営業時間</button>
+                    <button onclick="askQuestion('予約はできますか？')" class="quick-btn">予約について</button>
+                    <button onclick="askQuestion('アレルギー対応はありますか？')" class="quick-btn">アレルギー対応</button>
+                </div>
+            </section>
+        </main>
+
+        <section class="info-section">
+            <h2>🔗 URLリンク</h2>
+            <div id="page-links" class="info-card"></div>
+        </section>
+
+        <footer>
+            <a href="index.html" class="back-link">← メインページに戻る</a>
+        </footer>
+    </div>
+
+    <script>
+        function renderLinks() {
+            const base = window.location.href.replace(/[^/]*$/, '');
+            const pages = [
+                { name: '生徒用サイト (index.html)', file: 'index.html' },
+                { name: '予約サイト (reservation.html)', file: 'reservation.html' },
+                { name: '食堂専用ChatGPT (chatgpt.html)', file: 'chatgpt.html' }
+            ];
+            const linksDiv = document.getElementById('page-links');
+            linksDiv.innerHTML = pages.map(p => {
+                const url = base + p.file;
+                return `<p><strong>${p.name}:</strong> <a href="${url}">${url}</a></p>`;
+            }).join('');
+        }
+        window.addEventListener('load', renderLinks);
+    </script>
+    <script src="chatgpt-script.js"></script>
+</body>
+</html>

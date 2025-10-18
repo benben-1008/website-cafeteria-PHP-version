@@ -88,6 +88,7 @@
     async function generateCalendar() {
       const calendarDiv = document.getElementById('calendar');
       const holidays = await apiGet('holidays.php');
+      const dailyMenus = await apiGet('daily-menu.php');
       const today = new Date();
       const currentMonth = today.getMonth();
       const currentYear = today.getFullYear();
@@ -126,7 +127,9 @@
       for (let day = 1; day <= daysInMonth; day++) {
         const dateString = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const dayOfWeek = new Date(currentYear, currentMonth, day).getDay();
-        const isHoliday = holidays.find(h => h.date === dateString);
+        const holiday = holidays.find(h => h.date === dateString);
+        const dailyMenu = dailyMenus.find(m => m.date === dateString);
+        const isHoliday = !!holiday;
         const isSunday = dayOfWeek === 0;
         const isSaturday = dayOfWeek === 6;
         
@@ -135,7 +138,9 @@
         
         if (isHoliday) {
           dayClass += ' holiday';
-          dayContent = `${day}<br><small>${isHoliday.reason}</small>`;
+          dayContent = `${day}<br><small>${holiday.reason}</small>`;
+        } else if (dailyMenu) {
+          dayContent = `${day}<br><small>${dailyMenu.food}</small>`;
         } else if (isSunday) {
           dayClass += ' sunday';
         } else if (isSaturday) {

@@ -75,42 +75,52 @@ function addMessageToChat(message, sender) {
 // ChatGPTのレスポンスを取得
 async function getChatGPTResponse(userMessage) {
     try {
-        // 設定を読み込み
-        const response = await fetch('data.json');
-        const data = await response.json();
+        // 定食設定とメニュー情報を取得
+        const [dailyMenusResponse, menuResponse] = await Promise.all([
+            fetch('api/daily-menu.php').catch(() => null),
+            fetch('api/menu.php').catch(() => null)
+        ]);
         
-        // システムプロンプトを取得
-        const systemPrompt = data.chatgptSettings.systemPrompt || 
-            'あなたは学校食堂のAIアシスタントです。メニュー、営業時間、予約について質問に答えてください。';
+        const dailyMenus = dailyMenusResponse ? await dailyMenusResponse.json() : [];
+        const menus = menuResponse ? await menuResponse.json() : [];
         
-        // 基本的な応答を生成（実際の実装ではOpenAI APIを使用）
-        return generateBasicResponse(userMessage, systemPrompt, data);
+        // 基本的な応答を生成
+        return generateBasicResponse(userMessage, dailyMenus, menus);
         
     } catch (error) {
-        console.error('設定の読み込みに失敗しました:', error);
-        return generateBasicResponse(userMessage, '', null);
+        console.error('データの読み込みに失敗しました:', error);
+        return generateBasicResponse(userMessage, [], []);
     }
 }
 
 // 基本的な応答を生成
-function generateBasicResponse(userMessage, systemPrompt, data) {
+function generateBasicResponse(userMessage, dailyMenus, menus) {
     const message = userMessage.toLowerCase();
     
+    // 今日の定食を取得
+    const today = new Date().toISOString().split('T')[0];
+    const todayMenu = dailyMenus.find(m => m.date === today);
+    
     // メニューに関する質問
-    if (message.includes('メニュー') || message.includes('料理') || message.includes('食べ物')) {
-        return `今日のメニューは以下の通りです：
-
-🍽️ **定食メニュー**
-・定食 (550円)
-・焼き飯 (550円)
-
-🍜 **麺類**
-・ラーメン (500円)
-
-🥗 **サイドメニュー**
-・大盛り (+50円)
-
-※メニューは日によって変更する場合があります。`;
+    if (message.includes('メニュー') || message.includes('料理') || message.includes('食べ物') || message.includes('今日')) {
+        let response = `今日のメニューは以下の通りです：\n\n`;
+        
+        if (todayMenu) {
+            response += `🍽️ **今日の定食**\n・${todayMenu.food}\n\n`;
+        }
+        
+        response += `🍽️ **通常メニュー**\n`;
+        if (menus && menus.length > 0) {
+            menus.forEach(menu => {
+                const stockText = menu.stock > 0 ? `（残り${menu.stock}食）` : '（売り切れ）';
+                response += `・${menu.name} ${stockText}\n`;
+            });
+        } else {
+            response += `・日替わり定食（550円）\n・日替わり丼（450円）\n・カレーライス（450円）\n・カツカレー（500円）\n・醤油ラーメン（450円）\n・かけうどん（350円）\n`;
+        }
+        
+        response += `\n※メニューは日によって変更する場合があります。`;
+        return response;
     }
     
     // 営業時間に関する質問
@@ -158,10 +168,12 @@ function generateBasicResponse(userMessage, systemPrompt, data) {
         return `料金について：
 
 💰 **料金表**
-・定食: 550円
-・焼き飯: 550円
-・ラーメン: 500円
-・大盛り: +50円
+・日替わり定食: 550円
+・日替わり丼: 450円
+・カレーライス: 450円
+・カツカレー: 500円
+・醤油ラーメン: 450円
+・かけうどん: 350円
 
 💳 **支払い方法**
 ・現金

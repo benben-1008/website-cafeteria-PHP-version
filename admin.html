@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,15 +18,18 @@
       padding: 10px;
       border-radius: 8px;
     }
+
     .calendar div {
       padding: 5px;
     }
+
     .holiday {
       background-color: #ffcccc;
       border-radius: 6px;
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <header>
@@ -75,7 +79,7 @@
           </div>
           <button onclick="addHoliday()" class="btn btn-primary">休業日を追加</button>
         </div>
-  
+
         <div class="admin-card">
           <h3>🗓 カレンダー表示</h3>
           <div id="calendar" class="calendar"></div>
@@ -84,6 +88,28 @@
         <div class="admin-card">
           <h3>現在の休業日一覧</h3>
           <div id="holidays-list" class="holidays-list"></div>
+        </div>
+      </section>
+
+      <!-- 🔹 定食設定 -->
+      <section class="admin-section">
+        <h2>🍽️ 定食設定</h2>
+        <div class="admin-card">
+          <h3>日別定食を設定</h3>
+          <div class="form-group">
+            <label for="daily-menu-date">日付:</label>
+            <input type="date" id="daily-menu-date" required>
+          </div>
+          <div class="form-group">
+            <label for="daily-menu-food">定食メニュー:</label>
+            <input type="text" id="daily-menu-food" placeholder="例: カレーライス、日替わり定食" required>
+          </div>
+          <button onclick="addDailyMenu()" class="btn btn-primary">定食を設定</button>
+        </div>
+
+        <div class="admin-card">
+          <h3>現在の定食設定一覧</h3>
+          <div id="daily-menu-list"></div>
         </div>
       </section>
 
@@ -199,15 +225,41 @@
     async function loadHolidays() {
       const holidays = await apiGet('holidays.php');
       const list = document.getElementById("holidays-list");
-      list.innerHTML = holidays.length
-        ? holidays.map(h => `<p>📅 ${h.date}　📝 ${h.reason}</p>`).join("")
-        : "<p>休業日は登録されていません。</p>";
+
+      if (!holidays || holidays.length === 0) {
+        list.innerHTML = "<p>休業日は登録されていません。</p>";
+        return;
+      }
+
+      // 日付順にソート
+      const sortedHolidays = holidays.sort((a, b) => a.date.localeCompare(b.date));
+
+      list.innerHTML = sortedHolidays.map((h, i) => {
+        const div = document.createElement("div");
+        div.className = "menu-item";
+        div.innerHTML = `
+          <p>📅 ${h.date}　📝 ${h.reason}</p>
+          <button onclick="deleteHoliday(${i})" class="btn btn-danger">削除</button>
+        `;
+        return div.outerHTML;
+      }).join('');
+    }
+
+    async function deleteHoliday(index) {
+      if (!confirm('この休業日を削除しますか？')) return;
+
+      const holidays = await apiGet('holidays.php');
+      holidays.splice(index, 1);
+      await apiPost('holidays.php', holidays);
+      loadHolidays();
+      renderCalendar();
     }
 
     // === カレンダー表示 ===
     async function renderCalendar() {
       const calendar = document.getElementById("calendar");
       const holidays = await apiGet('holidays.php');
+      const dailyMenus = await apiGet('daily-menu.php');
       const today = new Date();
       const year = today.getFullYear();
       const month = today.getMonth(); // 0始まり
@@ -219,7 +271,7 @@
       calendar.innerHTML = "";
 
       // 曜日
-      ["日","月","火","水","木","金","土"].forEach(d => {
+      ["日", "月", "火", "水", "木", "金", "土"].forEach(d => {
         const div = document.createElement("div");
         div.innerHTML = `<strong>${d}</strong>`;
         calendar.appendChild(div);
@@ -233,55 +285,147 @@
 
       // 日付
       for (let day = 1; day <= lastDay.getDate(); day++) {
-        const dateStr = `${year}-${String(month + 1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+        const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
         const div = document.createElement("div");
-        const isHoliday = holidays.some(h => h.date === dateStr);
+        const holiday = holidays.find(h => h.date === dateStr);
+        const dailyMenu = dailyMenus.find(m => m.date === dateStr);
+        const isHoliday = !!holiday;
         div.textContent = day;
-        if (isHoliday) div.classList.add("holiday");
+        if (isHoliday) {
+          div.classList.add("holiday");
+        } else if (dailyMenu) {
+          div.innerHTML = `${day}<br><small>${dailyMenu.food}</small>`;
+        }
         calendar.appendChild(div);
       }
+    }
+
+    // === 定食設定 ===
+    async function addDailyMenu() {
+      const date = document.getElementById("daily-menu-date").value;
+      const food = document.getElementById("daily-menu-food").value;
+      if (!date || !food) return alert("日付と定食メニューを選択してください。");
+
+      const dailyMenus = await apiGet('daily-menu.php');
+
+      // 同じ日付の設定がある場合は更新、なければ追加
+      const existingIndex = dailyMenus.findIndex(m => m.date === date);
+      if (existingIndex >= 0) {
+        dailyMenus[existingIndex].food = food;
+      } else {
+        dailyMenus.push({ date, food });
+      }
+
+      await apiPost('daily-menu.php', dailyMenus);
+
+      document.getElementById("daily-menu-date").value = "";
+      document.getElementById("daily-menu-food").value = "";
+      loadDailyMenus();
+      renderCalendar();
+    }
+
+    async function loadDailyMenus() {
+      const dailyMenus = await apiGet('daily-menu.php');
+      const list = document.getElementById("daily-menu-list");
+
+      if (!dailyMenus || dailyMenus.length === 0) {
+        list.innerHTML = "<p>定食設定はありません。</p>";
+        return;
+      }
+
+      // 日付順にソート
+      const sortedMenus = dailyMenus.sort((a, b) => a.date.localeCompare(b.date));
+
+      list.innerHTML = sortedMenus.map(m => {
+        const div = document.createElement("div");
+        div.className = "menu-item";
+        div.innerHTML = `
+          <p>📅 ${m.date}　🍽️ ${m.food}</p>
+          <button onclick="deleteDailyMenu('${m.date}')" class="btn btn-danger">削除</button>
+        `;
+        return div.outerHTML;
+      }).join('');
+    }
+
+    async function deleteDailyMenu(date) {
+      if (!confirm('この定食設定を削除しますか？')) return;
+
+      const dailyMenus = await apiGet('daily-menu.php');
+      const filtered = dailyMenus.filter(m => m.date !== date);
+      await apiPost('daily-menu.php', filtered);
+      loadDailyMenus();
+      renderCalendar();
     }
 
     // === 予約一覧 ===
     async function loadReservations() {
       const reservations = await apiGet('reservations.php');
       const list = document.getElementById("reservations-list");
-      list.innerHTML = reservations.length
-        ? reservations.map(r => `<p>👤 ${r.name} 🍽️ ${r.food}</p>`).join("")
-        : "<p>予約はありません。</p>";
+
+      if (!reservations || reservations.length === 0) {
+        list.innerHTML = "<p>予約はありません。</p>";
+        return;
+      }
+
+      // メニュー別にグループ化し、重複する名前を削除
+      const grouped = {};
+      reservations.forEach(r => {
+        if (!grouped[r.food]) grouped[r.food] = new Set();
+        grouped[r.food].add(r.name);
+      });
+
+      // 各グループ内で名前順にソート
+      Object.keys(grouped).forEach(food => {
+        const uniqueNames = Array.from(grouped[food]).sort((a, b) => a.localeCompare(b, 'ja'));
+        grouped[food] = uniqueNames;
+      });
+
+      // メニュー名順にソートして表示
+      const sortedFoods = Object.keys(grouped).sort();
+      list.innerHTML = sortedFoods.map(food => {
+        const people = grouped[food].join('、');
+        const count = grouped[food].length;
+        return `
+          <div style="margin-bottom: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+            <h3 style="margin: 0 0 8px 0; font-size: 18px; color: #333;">🍽️ ${food}</h3>
+            <p style="margin: 0 0 5px 0; font-size: 16px;">${people}</p>
+            <p style="margin: 0; font-size: 20px; font-weight: bold; color: #e74c3c;">👥 ${count}人</p>
+          </div>
+        `;
+      }).join('');
     }
 
     // === 残数リセット ===
     async function resetMenuStocks() {
-  if (!confirm('本当にリセットしますか？\n全メニューの残数を初期値に戻します。')) {
-    return;
-  }
+      if (!confirm('本当にリセットしますか？\n全メニューの残数を初期値に戻します。')) {
+        return;
+      }
 
       let menus = await apiGet('menu.php');
 
-  if (menus.length === 0) {
-    alert("メニューがありません。");
-    return;
-  }
+      if (menus.length === 0) {
+        alert("メニューがありません。");
+        return;
+      }
 
-  // 🔹 initialStock が存在しない古いデータのための補完
-  menus = menus.map(m => {
-    // もし initialStock が無ければ、現在の stock を初期値として保存
-    if (typeof m.initialStock !== "number" || m.initialStock <= 0) {
-      m.initialStock = m.stock;
-    }
-    // リセット処理：残数を初期値に戻す
-    m.stock = m.initialStock;
-    return m;
-  });
+      // 🔹 initialStock が存在しない古いデータのための補完
+      menus = menus.map(m => {
+        // もし initialStock が無ければ、現在の stock を初期値として保存
+        if (typeof m.initialStock !== "number" || m.initialStock <= 0) {
+          m.initialStock = m.stock;
+        }
+        // リセット処理：残数を初期値に戻す
+        m.stock = m.initialStock;
+        return m;
+      });
 
       await apiPost('menu.php', menus);
 
-  // メニューを再読み込み
-  loadMenus();
+      // メニューを再読み込み
+      loadMenus();
 
-  alert("全メニューの残数を初期値にリセットしました。");
-}
+      alert("全メニューの残数を初期値にリセットしました。");
+    }
 
 
     // === 起動時 ===
@@ -301,13 +445,15 @@
       }).join('');
     }
 
-    window.onload = function() {
+    window.onload = function () {
       loadMenus();
       loadHolidays();
+      loadDailyMenus();
       loadReservations();
       renderCalendar();
       renderLinks();
     };
   </script>
 </body>
+
 </html>

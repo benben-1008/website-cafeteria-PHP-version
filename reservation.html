@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>食堂予約システム</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <div class="container">
     <header>
@@ -35,7 +37,7 @@
           </form>
         </div>
       </section>
-      
+
       <section class="menu-table-section">
         <div class="reservation-card">
           <h2>📋 メニュー一覧</h2>
@@ -124,7 +126,7 @@
       menus.forEach(menu => {
         const option = document.createElement("option");
         option.value = menu.name;
-        option.textContent = menu.stock > 0 
+        option.textContent = menu.stock > 0
           ? `${menu.name}（残り${menu.stock}食）`
           : `${menu.name}（売り切れ）`;
         option.disabled = menu.stock <= 0;
@@ -178,10 +180,11 @@
       }).join('');
     }
 
-    window.onload = function() {
+    window.onload = function () {
       loadMenuOptions();
       renderLinks();
     };
   </script>
 </body>
+
 </html>

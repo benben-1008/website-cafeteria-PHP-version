@@ -50,7 +50,15 @@
           </div>
           <div class="form-group">
             <label for="menu-stock">提供可能数:</label>
-            <input type="number" id="menu-stock" placeholder="例: 30" required>
+            <input type="number" id="menu-stock" placeholder="例: 30">
+          </div>
+          <div class="form-group">
+            <label
+              style="display: flex; align-items: center; font-weight: bold; color: #e74c3c; font-size: 16px; padding: 12px; background-color: #fff5f5; border: 2px solid #e74c3c; border-radius: 8px; cursor: pointer; transition: all 0.3s ease;">
+              <input type="checkbox" id="unlimited-stock" onchange="toggleStockInput()"
+                style="margin-right: 12px; transform: scale(2.0); cursor: pointer;">
+              ♾️ 無制限で提供（在庫管理なし）
+            </label>
           </div>
           <button onclick="addMenu()" class="btn btn-primary">メニューを追加</button>
         </div>
@@ -118,6 +126,9 @@
         <h2>📝 予約一覧</h2>
         <div class="admin-card">
           <h3>予約状況</h3>
+          <div style="margin-bottom:10px;">
+            <button onclick="resetReservations()" class="btn btn-danger">予約をリセット</button>
+          </div>
           <div id="reservations-list"></div>
         </div>
       </section>
@@ -152,6 +163,20 @@
       return await res.json();
     }
     // === メニュー管理 ===
+    function toggleStockInput() {
+      const stockInput = document.getElementById("menu-stock");
+      const unlimitedCheckbox = document.getElementById("unlimited-stock");
+
+      if (unlimitedCheckbox.checked) {
+        stockInput.disabled = true;
+        stockInput.value = "";
+        stockInput.placeholder = "無制限";
+      } else {
+        stockInput.disabled = false;
+        stockInput.placeholder = "例: 30";
+      }
+    }
+
     async function loadMenus() {
       const list = document.getElementById("menu-list");
       list.innerHTML = "";
@@ -177,8 +202,9 @@
       menus.forEach((m, i) => {
         const div = document.createElement("div");
         div.className = "menu-item";
+        const stockDisplay = m.stock === -1 ? "無制限" : `${m.stock}食`;
         div.innerHTML = `
-          <p>🍱 ${m.name}　残り: ${m.stock}食</p>
+          <p>🍱 ${m.name}　残り: ${stockDisplay}</p>
           <button onclick="deleteMenu(${i})" class="btn btn-danger">削除</button>
         `;
         list.appendChild(div);
@@ -187,15 +213,30 @@
 
     async function addMenu() {
       const name = document.getElementById("menu-name").value.trim();
-      const stock = parseInt(document.getElementById("menu-stock").value);
-      if (!name || stock <= 0) return alert("メニュー名と提供数を正しく入力してください。");
+      const unlimitedCheckbox = document.getElementById("unlimited-stock");
+      const stockInput = document.getElementById("menu-stock");
+
+      if (!name) return alert("メニュー名を入力してください。");
+
+      let stock, initialStock;
+      if (unlimitedCheckbox.checked) {
+        stock = -1; // 無制限を-1で表現
+        initialStock = -1;
+      } else {
+        stock = parseInt(stockInput.value);
+        if (!stock || stock <= 0) return alert("提供数を正しく入力してください。");
+        initialStock = stock;
+      }
 
       const menus = await apiGet('menu.php');
-      menus.push({ name, stock, initialStock: stock });
+      menus.push({ name, stock, initialStock });
       await apiPost('menu.php', menus);
 
       document.getElementById("menu-name").value = "";
       document.getElementById("menu-stock").value = "";
+      document.getElementById("unlimited-stock").checked = false;
+      stockInput.disabled = false;
+      stockInput.placeholder = "例: 30";
       loadMenus();
     }
 
@@ -251,8 +292,10 @@
       const holidays = await apiGet('holidays.php');
       holidays.splice(index, 1);
       await apiPost('holidays.php', holidays);
+
+      // カレンダーを再描画してから休業日一覧を更新
+      await renderCalendar();
       loadHolidays();
-      renderCalendar();
     }
 
     // === カレンダー表示 ===
@@ -395,6 +438,17 @@
       }).join('');
     }
 
+    // === 予約リセット ===
+    async function resetReservations() {
+      if (!confirm('本当にリセットしますか？\n全ての予約データが削除されます。')) {
+        return;
+      }
+
+      await apiPost('reservations.php', []);
+      loadReservations();
+      alert("全ての予約をリセットしました。");
+    }
+
     // === 残数リセット ===
     async function resetMenuStocks() {
       if (!confirm('本当にリセットしますか？\n全メニューの残数を初期値に戻します。')) {
@@ -414,7 +468,7 @@
         if (typeof m.initialStock !== "number" || m.initialStock <= 0) {
           m.initialStock = m.stock;
         }
-        // リセット処理：残数を初期値に戻す
+        // リセット処理：残数を初期値に戻す（無制限の場合は-1のまま）
         m.stock = m.initialStock;
         return m;
       });

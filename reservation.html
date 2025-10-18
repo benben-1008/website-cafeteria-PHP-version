@@ -126,10 +126,21 @@
       menus.forEach(menu => {
         const option = document.createElement("option");
         option.value = menu.name;
-        option.textContent = menu.stock > 0
-          ? `${menu.name}（残り${menu.stock}食）`
-          : `${menu.name}（売り切れ）`;
-        option.disabled = menu.stock <= 0;
+
+        if (menu.stock === -1) {
+          // 無制限メニュー
+          option.textContent = `${menu.name}（無制限）`;
+          option.disabled = false;
+        } else if (menu.stock > 0) {
+          // 通常メニュー（在庫あり）
+          option.textContent = `${menu.name}（残り${menu.stock}食）`;
+          option.disabled = false;
+        } else {
+          // 売り切れ
+          option.textContent = `${menu.name}（売り切れ）`;
+          option.disabled = true;
+        }
+
         select.appendChild(option);
       });
     }
@@ -142,7 +153,7 @@
 
       const menus = await apiGet('menu.php');
       const menu = menus.find(m => m.name === food);
-      if (!menu || menu.stock <= 0) {
+      if (!menu || (menu.stock !== -1 && menu.stock <= 0)) {
         alert("このメニューは売り切れです。");
         return;
       }
@@ -152,9 +163,11 @@
       reservations.push({ name, food, createdAt: new Date().toISOString() });
       await apiPost('reservations.php', reservations);
 
-      // 在庫を減らす
-      menu.stock -= 1;
-      await apiPost('menu.php', menus);
+      // 在庫を減らす（無制限メニューは除く）
+      if (menu.stock !== -1) {
+        menu.stock -= 1;
+        await apiPost('menu.php', menus);
+      }
 
       alert("予約が完了しました！");
       document.getElementById("reservation-form").reset();

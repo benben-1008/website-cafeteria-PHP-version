@@ -1,16 +1,21 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>食堂専用ChatGPT</title>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div class="container">
         <header>
             <h1>🤖 食堂専用ChatGPT</h1>
             <p>メニューや営業時間について質問してください</p>
+            <div id="api-status" class="api-status" style="display: none;">
+                <p>⚠️ ChatGPT APIキーが設定されていません。管理者にお問い合わせください。</p>
+            </div>
         </header>
 
         <main>
@@ -64,8 +69,30 @@
                 return `<p><strong>${p.name}:</strong> <a href="${url}">${url}</a></p>`;
             }).join('');
         }
-        window.addEventListener('load', renderLinks);
+
+        // APIキーの状態をチェック
+        async function checkAPIStatus() {
+            try {
+                const response = await fetch('data.json');
+                const data = await response.json();
+                const apiStatus = document.getElementById('api-status');
+
+                if (!data.chatgptSettings.apiKey || data.chatgptSettings.apiKey === 'YOUR_OPENAI_API_KEY_HERE') {
+                    apiStatus.style.display = 'block';
+                } else {
+                    apiStatus.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('API状態の確認に失敗:', error);
+            }
+        }
+
+        window.addEventListener('load', function () {
+            renderLinks();
+            checkAPIStatus();
+        });
     </script>
     <script src="chatgpt-script.js"></script>
 </body>
+
 </html>

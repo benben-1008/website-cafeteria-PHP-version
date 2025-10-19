@@ -16,7 +16,7 @@
   "chatgptSettings": {
     "systemPrompt": "あなたは学校食堂のAIアシスタントです。メニュー、営業時間、予約について質問に答えてください。親切で丁寧な対応を心がけてください。",
     "apiType": "ollama",
-    "apiKey": "YOUR_OPENAI_API_KEY_HERE",
+    "apiKey": "ollama-local",
     "model": "llama2",
     "maxTokens": 1000,
     "temperature": 0.7
